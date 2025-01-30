@@ -1,0 +1,643 @@
+html
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Türkiye İl Haritası (Profesyonel Versiyon)</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c7fb8;
+            --secondary-color: #253494;
+            --background-color: #ffffff;
+            --text-color: #333333;
+            --border-radius: 8px;
+            --transition-duration: 0.3s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            text-align: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            position: relative;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            color: var(--primary-color);
+            font-size: 2em;
+        }
+
+        svg {
+            width: 100%;
+            max-width: 1000px;
+            height: auto;
+            margin: 20px 0 60px 0;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+        }
+
+        path {
+            fill: white;
+            stroke: #666;
+            stroke-width: 0.5;
+            cursor: pointer;
+            transition: all var(--transition-duration) ease;
+        }
+
+        path:hover {
+            fill: #f0f0f0;
+            stroke-width: 1;
+            filter: brightness(0.95);
+        }
+
+        .input-container {
+            display: none;
+            position: absolute;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            min-width: 200px;
+        }
+
+        .input-container input {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .input-container button {
+            width: 100%;
+            padding: 8px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color var(--transition-duration);
+        }
+
+        .input-container button:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .controls-container {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            background-color: white;
+        }
+
+        .legend {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        .legend-title {
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            visibility: hidden;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .help-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            z-index: 2000;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .help-modal h2 {
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+
+        .help-modal ul {
+            text-align: left;
+            margin-left: 20px;
+        }
+
+        .help-modal li {
+            margin: 10px 0;
+        }
+
+        .error-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff4444;
+            color: white;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            z-index: 2000;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .controls-container {
+                position: static;
+                margin-bottom: 20px;
+                width: 100%;
+            }
+
+            .legend {
+                position: static;
+                margin-top: 20px;
+                width: 100%;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .export-button {
+            padding: 8px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color var(--transition-duration);
+        }
+
+        .export-button:hover {
+            background-color: var(--secondary-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Türkiye İl Haritası (Profesyonel Versiyon)</h1>
+
+        <div class="controls-container">
+            <div class="control-panel">
+                <label for="scale-type">Ölçek Türü:</label>
+                <select id="scale-type">
+                    <option value="linear">Doğrusal Ölçek</option>
+                    <option value="time">Zaman Ölçeği</option>
+                    <option value="power">Güç Ölçeği</option>
+                    <option value="log">Logaritmik Ölçek</option>
+                    <option value="symlog">Symlog Ölçeği</option>
+                    <option value="ordinal">Sıralı Ölçek</option>
+                    <option value="band">Bant Ölçeği</option>
+                    <option value="point">Nokta Ölçeği</option>
+                    <option value="sequential">Sıralı Renk Kodlaması</option>
+                    <option value="diverging">Ayrışan Renk Kodlaması</option>
+                    <option value="quantile">Kantil Ölçek</option>
+                    <option value="quantitative">Nicel Ölçek</option>
+                    <option value="threshold">Eşik Ölçeği</option>
+                </select>
+            </div>
+
+            <div class="control-panel">
+                <label for="color-palette">Renk Paleti:</label>
+                <select id="color-palette">
+                    <option value="palette1">Renk 1</option>
+                    <option value="palette2">Renk 2</option>
+                    <option value="palette3">Renk 3</option>
+                    <option value="palette4">Renk 4</option>
+                    <option value="palette5">Renk 5</option>
+                    <option value="palette6">Renk 6</option>
+                    <option value="diverging1">RdYlBu</option>
+                    <option value="diverging2">RdBu</option>
+                    <option value="diverging3">PiYG</option>
+                    <option value="diverging4">RdGy</option>
+                    <option value="diverging5">PuOr</option>
+                    <option value="interpolateBrBG">BrBG</option>
+                    <option value="interpolatePRGn">PRGn</option>
+                    <option value="interpolateBlues">Blues</option>
+                    <option value="interpolateGreens">Greens</option>
+                    <option value="interpolateViridis">Viridis</option>
+                    <option value="interpolateMagma">Magma</option>
+                    <option value="interpolateCubehelixDefault">Cubehelix</option>
+                    <option value="schemeCategory10">Category10</option>
+                    <option value="schemeDark2">Dark2</option>
+                </select>
+            </div>
+
+            <div class="export-buttons">
+                <button class="export-button" onclick="ExportModule.downloadData('csv')">CSV İndir</button>
+                <button class="export-button" onclick="ExportModule.downloadData('json')">JSON İndir</button>
+                <button class="export-button" onclick="HelpModule.showHelp()">Yardım</button>
+            </div>
+        </div>
+
+        <svg id="map"></svg>
+
+        <div id="input-container" class="input-container">
+            <p id="il-adi"></p>
+            <input type="number" id="il-verisi" placeholder="Veri girin">
+            <button onclick="MapModule.saveData()">Kaydet</button>
+        </div>
+
+        <div id="legend" class="legend">
+            <div class="legend-title">Değer Aralığı</div>
+        </div>
+
+        <div id="tooltip" class="tooltip"></div>
+    </div>
+
+javascript
+<script>
+// Ana modül yapısı
+const MapModule = {
+    config: {
+        width: 1000,
+        height: 600,
+        geojsonURL: "https://raw.githubusercontent.com/cihadturhan/tr-geojson/master/geo/tr-cities-utf8.json",
+        transitionDuration: 500
+    },
+    state: {
+        selectedProvince: null,
+        data: new Map(),
+        svg: null,
+        projection: null,
+        pathGenerator: null
+    },
+
+    colorPalettes: {
+        palette1: ["#ffffcc", "#c7e9b4", "#7fcdbb", "#41b6c4", "#2c7fb8", "#253494"],
+        palette2: ["#fcfcbe", "#fdc78d", "#fb8d67", "#e45563", "#ac337b", "#6b1f7b", "#2c1160"],
+        palette3: ["#fefaca", "#008b15"],
+        palette4: ["#b2182b", "#ef8a62", "#fddbc7", "#f8f6e9", "#d1e5f0", "#67a9cf", "#2166ac"],
+        palette5: ["#c51b7d", "#e9a3c9", "#fde0ef", "#faf6ea", "#e6f5d0", "#a1d76a", "#4d9221"],
+        palette6: ["#f0f723", "#fbbf2b", "#f38a47", "#d8586a", "#ac2790", "#6703a5", "#0d0787"],
+        diverging1: ["#d73027", "#fee08b", "#4575b4"],
+        diverging2: ["#a50026", "#f7f7f7", "#313695"],
+        diverging3: ["#9e0142", "#d53e4f", "#3288bd"],
+        diverging4: ["#d7191c", "#fdae61", "#2b83ba"],
+        diverging5: ["#40004b", "#f1a340", "#91bfdb"],
+        interpolateBrBG: d3.interpolateBrBG,
+        interpolatePRGn: d3.interpolatePRGn,
+        interpolateBlues: d3.interpolateBlues,
+        interpolateGreens: d3.interpolateGreens,
+        interpolateViridis: d3.interpolateViridis,
+        interpolateMagma: d3.interpolateMagma,
+        interpolateCubehelixDefault: d3.interpolateCubehelixDefault,
+        schemeCategory10: d3.schemeCategory10,
+        schemeDark2: d3.schemeDark2
+    },
+
+    init() {
+        this.state.svg = d3.select("#map")
+            .attr("viewBox", "25 25 1000 600");
+        
+        this.loadMapData();
+        this.setupEventListeners();
+    },
+
+    async loadMapData() {
+        try {
+            const response = await fetch(this.config.geojsonURL);
+            if (!response.ok) throw new Error('Harita verisi yüklenemedi');
+            const data = await response.json();
+            
+            this.state.projection = d3.geoMercator()
+                .fitSize([this.config.width, this.config.height], data);
+            
+            this.state.pathGenerator = d3.geoPath()
+                .projection(this.state.projection);
+
+            this.renderMap(data);
+        } catch (error) {
+            ErrorHandler.handle(error);
+        }
+    },
+
+    renderMap(data) {
+        this.state.svg.selectAll("path")
+            .data(data.features)
+            .enter()
+            .append("path")
+            .attr("d", this.state.pathGenerator)
+            .attr("id", d => d.properties.name)
+            .attr("data-iladi", d => d.properties.name)
+            .on("mouseover", this.handleMouseOver.bind(this))
+            .on("mouseout", this.handleMouseOut.bind(this))
+            .on("click", this.handleClick.bind(this));
+
+        this.updateMap();
+    },
+
+    handleMouseOver(event, d) {
+        const tooltip = d3.select("#tooltip");
+        tooltip.style("visibility", "visible")
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 10) + "px")
+            .text(d.properties.name);
+    },
+
+    handleMouseOut() {
+        d3.select("#tooltip").style("visibility", "hidden");
+    },
+
+    handleClick(event, d) {
+        this.state.selectedProvince = d.properties.name;
+        const inputContainer = document.getElementById("input-container");
+        document.getElementById("il-adi").textContent = this.state.selectedProvince;
+        document.getElementById("il-verisi").value = this.state.data.get(this.state.selectedProvince) || "";
+        
+        inputContainer.style.display = "block";
+        inputContainer.style.left = (event.pageX + 10) + "px";
+        inputContainer.style.top = (event.pageY - 10) + "px";
+    },
+
+    saveData() {
+        try {
+            const value = document.getElementById("il-verisi").value;
+            const validatedValue = DataValidator.validateInput(value);
+            
+            this.state.data.set(this.state.selectedProvince, validatedValue);
+            document.getElementById("input-container").style.display = "none";
+            
+            this.updateMap();
+        } catch (error) {
+            ErrorHandler.handle(error);
+        }
+    },
+
+    getColorScale() {
+        const values = Array.from(this.state.data.values());
+        if (values.length === 0) return d3.scaleOrdinal().domain([0, 1]).range(["white"]);
+
+        const minVal = Math.min(...values);
+        const maxVal = Math.max(...values);
+        const selectedPalette = document.getElementById("color-palette").value;
+        const colors = this.colorPalettes[selectedPalette];
+        const scaleType = document.getElementById("scale-type").value;
+
+        return ScaleFactory.createScale(scaleType, minVal, maxVal, colors, values);
+    },
+
+    updateMap: debounce(function() {
+        const colorScale = this.getColorScale();
+        
+        this.state.svg.selectAll("path")
+            .transition()
+            .duration(this.config.transitionDuration)
+            .style("fill", d => {
+                const value = this.state.data.get(d.properties.name);
+                return value ? colorScale(value) : "white";
+            });
+        
+        LegendModule.update(colorScale);
+    }, 250),
+
+    setupEventListeners() {
+        document.getElementById("scale-type").addEventListener("change", () => this.updateMap());
+        document.getElementById("color-palette").addEventListener("change", () => this.updateMap());
+    }
+};
+
+// Yardımcı Modüller
+const DataValidator = {
+    validateInput(value) {
+        const num = parseFloat(value);
+        if (isNaN(num)) throw new Error('Geçersiz sayı');
+        if (num < 0) throw new Error('Negatif değer girilemez');
+        return num;
+    }
+};
+
+const ScaleFactory = {
+    createScale(type, minVal, maxVal, colors, values) {
+        const scales = {
+            linear: () => d3.scaleLinear()
+                .domain([minVal, maxVal])
+                .range([colors[0], colors[colors.length - 1]]),
+            
+            time: () => d3.scaleTime()
+                .domain([new Date(minVal), new Date(maxVal)])
+                .range([colors[0], colors[colors.length - 1]]),
+            
+            power: () => d3.scalePow()
+                .exponent(0.5)
+                .domain([minVal, maxVal])
+                .range([colors[0], colors[colors.length - 1]]),
+            
+            log: () => d3.scaleLog()
+                .domain([Math.max(0.1, minVal), maxVal])
+                .range([colors[0], colors[colors.length - 1]]),
+            
+            // Diğer ölçek tipleri...
+        };
+
+        return (scales[type] || scales.linear)();
+    }
+};
+
+const LegendModule = {
+    update(colorScale) {
+        const legendContainer = d3.select("#legend");
+        legendContainer.selectAll("svg").remove();
+        
+        const legendWidth = 300;
+        const legendHeight = 20;
+        
+        const values = Array.from(MapModule.state.data.values());
+        if (values.length === 0) return;
+        
+        const minVal = Math.min(...values);
+        const maxVal = Math.max(...values);
+        
+        const legendData = d3.range(minVal, maxVal + (maxVal - minVal)/5, (maxVal - minVal) / 5);
+        
+        const legend = legendContainer.append("svg")
+            .attr("width", legendWidth)
+            .attr("height", legendHeight + 25);
+        
+        // Legend boxes
+        const boxWidth = legendWidth / legendData.length;
+        legend.selectAll(".legend-box")
+            .data(legendData)
+            .enter()
+            .append("rect")
+            .attr("x", (d, i) => i * boxWidth)
+            .attr("y", 0)
+            .attr("width", boxWidth)
+            .attr("height", legendHeight)
+            .style("fill", d => colorScale(d));
+        
+        // Legend labels
+        legend.selectAll(".legend-label")
+            .data(legendData)
+            .enter()
+            .append("text")
+            .attr("x", (d, i) => i * boxWidth + boxWidth/2)
+            .attr("y", legendHeight + 15)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .text(d => d.toFixed(1));
+    }
+};
+
+const ExportModule = {
+    toCSV() {
+        const data = Array.from(MapModule.state.data.entries());
+        return 'İl,Değer\n' + data.map(([province, value]) => `${province},${value}`).join('\n');
+    },
+
+    toJSON() {
+        return JSON.stringify(Object.fromEntries(MapModule.state.data));
+    },
+
+    downloadData(format = 'csv') {
+        const data = format === 'csv' ? this.toCSV() : this.toJSON();
+        const blob = new Blob([data], { type: `text/${format}` });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `turkiye-il-verileri.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+};
+
+const HelpModule = {
+    showHelp() {
+        const existingHelp = document.querySelector('.help-modal');
+        if (existingHelp) existingHelp.remove();
+
+        const helpModal = document.createElement('div');
+        helpModal.className = 'help-modal';
+        helpModal.innerHTML = `
+            <h2>Kullanım Kılavuzu</h2>
+            <ul>
+                <li>İl seçmek için harita üzerine tıklayın</li>
+                <li>Veri girmek için açılan pencereyi kullanın</li>
+                <li>Farklı görselleştirmeler için ölçek türünü değiştirin</li>
+                <li>Renk paletini değiştirerek farklı görsel efektler elde edin</li>
+                <li>Verileri CSV veya JSON formatında dışa aktarabilirsiniz</li>
+            </ul>
+            <button onclick="this.parentElement.remove()" style="margin-top: 20px;">Kapat</button>
+        `;
+        document.body.appendChild(helpModal);
+    }
+};
+
+const ErrorHandler = {
+    handle(error) {
+        console.error('Hata:', error);
+        
+        const existingError = document.querySelector('.error-message');
+        if (existingError) existingError.remove();
+
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.textContent = error.message || 'Bir hata oluştu';
+        
+        document.body.appendChild(errorDiv);
+        setTimeout(() => errorDiv.remove(), 3000);
+    }
+};
+
+// Yardımcı fonksiyonlar
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func.apply(this, args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Uygulamayı başlat
+document.addEventListener('DOMContentLoaded', () => {
+    MapModule.init();
+});
+</script>
+</body>
+</html>
